@@ -1,0 +1,472 @@
+-------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------ObjectsController.cs-------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.Entity;
+using System.Linq;
+using System.Net;
+using System.Web;
+using System.Web.Mvc;
+using NguyenPhungAn_2020600620.Models;
+
+namespace NguyenPhungAn_2020600620.Controllers
+{
+    public class ObjectsController : Controller
+    {
+        private CompanyDB db = new CompanyDB();
+        public ActionResult Xemdanhsach(string searchString)
+        {
+            var Employee = db.Employee.Include(t => t.Department);
+
+            if (!String.IsNullOrEmpty(searchString))
+            {
+                Employee = Employee.Where(p => p.name.Contains(searchString));
+            }
+            return View(Employee.ToList());
+        }
+        public ActionResult Suadulieu(int? id)
+        {
+            if (id == null)
+            {
+                return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
+            }
+            Employee Employee = db.Employee.Find(id);
+            if (Employee == null)
+            {
+                return HttpNotFound();
+            }
+            ViewBag.deptid = new SelectList(db.Department, "deptid", "deptname", Employee.deptid);
+            return View(Employee);
+        }
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult Suadulieu([Bind(Include = "eid,name,age,addr,salary,image,deptid")] Employee Employee)
+        {
+            try
+            {
+                if (ModelState.IsValid)
+                {
+                    var f = Request.Files["ImageFile"];
+                    if (f != null && f.ContentLength > 0)
+                    {
+                        string FileName = System.IO.Path.GetFileName(f.FileName);
+                        string UploadPath = Server.MapPath("~/Content/Images/" + FileName);
+                        f.SaveAs(UploadPath);
+                        Employee.image = FileName;
+                    }
+                    db.Entry(Employee).State = EntityState.Modified;
+                    db.SaveChanges();
+                }
+                return RedirectToAction("Xemdanhsach");
+            }
+            catch (Exception ex)
+            {
+                ViewBag.Error = "Lỗi nhập dữ liệu!" + ex.Message;
+                return View(Employee);
+            }
+        }
+
+        public ActionResult Xoadulieu(int? id)
+        {
+            if (id == null)
+            {
+                return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
+            }
+            Employee Employee = db.Employee.Find(id);
+            if (Employee == null)
+            {
+                return HttpNotFound();
+            }
+            return View(Employee);
+        }
+
+        [HttpPost, ActionName("Xoadulieu")]
+        [ValidateAntiForgeryToken]
+        public ActionResult Xacnhanxoa(int id)
+        {
+            Employee Employee = db.Employee.Find(id);
+            try
+            {
+                db.Employee.Remove(Employee);
+                db.SaveChanges();
+                return RedirectToAction("Xemdanhsach");
+            }
+            catch (Exception ex)
+            {
+                ViewBag.Error = "Không thể xóa bản ghi này!" + ex.Message;
+                return View("Xoadulieu", Employee);
+            }
+
+        }
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                db.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+    }
+}
+-------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------Xemdanhsach.cshtml---------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------
+@model IEnumerable<NguyenPhungAn_2020600620.Models.Employee>
+@{
+    ViewBag.Title = "Xemdanhsach";
+}
+
+<h2>Hiển thị danh sách</h2>
+@using (Html.BeginForm())
+{
+    <p>
+        Tìm theo tên nhân viên: @Html.TextBox("searchString")
+        <input type="submit" value="Tìm" />
+    </p>
+}
+
+<p>
+    <table class="table">
+        <tr>
+            <th>
+                @Html.DisplayNameFor(model => model.Department.deptname)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.name)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.age)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.addr)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.salary)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.image)
+            </th>
+            <th></th>
+        </tr>
+
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>
+                    @Html.DisplayFor(modelItem => item.Department.deptname)
+                </td>
+                <td>
+                    @Html.DisplayFor(modelItem => item.name)
+                </td>
+                <td>
+                    @Html.DisplayFor(modelItem => item.age)
+                </td>
+                <td>
+                    @Html.DisplayFor(modelItem => item.addr)
+                </td>
+                <td>
+                    @Html.DisplayFor(modelItem => item.salary)
+                </td>
+                <td>
+                    @{
+                        string path = "~/Content/Images/" + item.image;
+                    }
+                    <img src="@Url.Content(path)" width="150" class="img-thumbnail" />
+                    <br />
+                    @Html.DisplayFor(modelItem => item.image)
+                </td>
+                <td>
+                    @Html.ActionLink("Chỉnh sửa", "Suadulieu", new { id = item.eid }) |
+                    @Html.ActionLink("Xóa", "Xoadulieu", new { id = item.eid })
+                </td>
+            </tr>
+        }
+
+    </table>
+
+-------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------SuaDuLieu.cshtml--------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------
+
+@model NguyenPhungAn_2020600620.Models.Employee
+@{
+    ViewBag.Title = "Suadulieu";
+    var ImagePath = "~/Content/Images/" + Model.image;
+}
+
+@using (Html.BeginForm("Suadulieu", "Objects", FormMethod.Post, new { enctype = "multipart/form-data" }))
+{
+    @Html.AntiForgeryToken()
+
+    <div class="form-horizontal">
+        <h4>Bảng nhân viên</h4>
+        <hr />
+        @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+        @Html.HiddenFor(model => model.eid)
+
+        <div class="form-group">
+            @Html.LabelFor(model => model.name, htmlAttributes: new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.EditorFor(model => model.name, new { htmlAttributes = new { @class = "form-control" } })
+                @Html.ValidationMessageFor(model => model.name, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(model => model.age, htmlAttributes: new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.EditorFor(model => model.age, new { htmlAttributes = new { @class = "form-control" } })
+                @Html.ValidationMessageFor(model => model.age, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(model => model.addr, htmlAttributes: new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.EditorFor(model => model.addr, new { htmlAttributes = new { @class = "form-control" } })
+                @Html.ValidationMessageFor(model => model.addr, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(model => model.salary, htmlAttributes: new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.EditorFor(model => model.salary, new { htmlAttributes = new { @class = "form-control" } })
+                @Html.ValidationMessageFor(model => model.salary, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(model => model.image, htmlAttributes: new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                <img id="output" class="img-rounded" alt="Ảnh" width="180" height="200" src="@Url.Content(@ImagePath)" />
+                <p><label for="ufile" style="cursor: pointer;">Chọn file ảnh</label></p>
+                <input name="ImageFile" id="ufile" type="file" style="display: none;" onchange="loadFile(event)" />
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(model => model.deptid, "Phòng ban", htmlAttributes: new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.DropDownList("deptid", null, htmlAttributes: new { @class = "form-control" })
+                @Html.ValidationMessageFor(model => model.deptid, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="col-md-offset-2 col-md-10">
+                <input type="submit" value="Lưu lại" class="btn btn-default" />
+            </div>
+        </div>
+    </div>
+}
+
+<div>
+    @Html.ActionLink("Quay lại", "Xemdanhsach")
+</div>
+
+@if (ViewBag.Error != null)
+{
+    <br />
+    <div class="alert alert-danger" role="alert">@ViewBag.Error</div>
+}
+
+@section Scripts {
+    @Scripts.Render("~/bundles/jqueryval")
+}
+<script>
+    var loadFile = function (event) {
+        var image = document.getElementById('output');
+        image.src = URL.createObjectURL(event.target.files[0]);
+    };
+</script>
+
+-------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------XoaDuLieu.cshtml--------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------
+@model NguyenPhungAn_2020600620.Models.Employee
+@{
+    ViewBag.Title = "Xoadulieu";
+}
+
+<h2>Xóa thông tin nhân viên</h2>
+
+<h3>Bạn có chắc muốn xóa nhân viên này?</h3>
+<div>
+    <h4>Thông tin nhân viên</h4>
+    <hr />
+    <dl class="dl-horizontal">
+        <dt>
+            Phòng ban
+        </dt>
+
+        <dd>
+            @Html.DisplayFor(model => model.Department.deptname)
+        </dd>
+
+        <dt>
+            @Html.DisplayNameFor(model => model.name)
+        </dt>
+
+        <dd>
+            @Html.DisplayFor(model => model.name)
+        </dd>
+
+        <dt>
+            @Html.DisplayNameFor(model => model.age)
+        </dt>
+
+        <dd>
+            @Html.DisplayFor(model => model.age)
+        </dd>
+
+        <dt>
+            @Html.DisplayNameFor(model => model.addr)
+        </dt>
+
+        <dd>
+            @Html.DisplayFor(model => model.addr)
+        </dd>
+
+        <dt>
+            @Html.DisplayNameFor(model => model.salary)
+        </dt>
+
+        <dd>
+            @Html.DisplayFor(model => model.salary)
+        </dd>
+
+        <dt>
+            @Html.DisplayNameFor(model => model.image)
+        </dt>
+
+        <dd>
+            @{
+                string path = "~/Content/Images/" + Model.image;
+            }
+            <img src="@Url.Content(path)" width="150" class="img-thumbnail" />
+            <br />
+            @Html.DisplayFor(model => model.image)
+        </dd>
+
+    </dl>
+
+    @using (Html.BeginForm())
+    {
+        @Html.AntiForgeryToken()
+
+        <div class="form-actions no-color">
+            <input type="submit" value="Xóa" class="btn btn-default" /> |
+            @Html.ActionLink("Quay lại", "Xemdanhsach")
+        </div>
+    }
+</div>
+@if (ViewBag.Error != null)
+{
+    <br />
+    <div class="alert alert-danger" role="alert">@ViewBag.Error</div>
+}
+
+-------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------ThemDuLieu.cshtml-------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------
+@model Proj_LoginDemo.Models.Employee
+@{
+    ViewBag.Title = "Themdulieu";
+}
+
+<h2>Thêm nhân viên</h2>
+
+@using (Html.BeginForm("Themdulieu", "Objects", FormMethod.Post, new { enctype = "multipart/form-data" }))
+{
+    @Html.AntiForgeryToken()
+
+    <div class="form-horizontal">
+        <h4>Thông tin nhân viên</h4>
+        <hr />
+        @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+        <div class="form-group">
+            @Html.LabelFor(model => model.name, htmlAttributes: new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.EditorFor(model => model.name, new { htmlAttributes = new { @class = "form-control" } })
+                @Html.ValidationMessageFor(model => model.name, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(model => model.age, htmlAttributes: new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.EditorFor(model => model.age, new { htmlAttributes = new { @class = "form-control" } })
+                @Html.ValidationMessageFor(model => model.age, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(model => model.addr, htmlAttributes: new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.EditorFor(model => model.addr, new { htmlAttributes = new { @class = "form-control" } })
+                @Html.ValidationMessageFor(model => model.addr, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(model => model.salary, htmlAttributes: new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.EditorFor(model => model.salary, new { htmlAttributes = new { @class = "form-control" } })
+                @Html.ValidationMessageFor(model => model.salary, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(model => model.image, htmlAttributes: new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                <img id="output" class="img-rounded" alt="Ảnh" width="180" height="200" src="~/Content/Images/no-image.jpg" />
+                <p><label for="ufile" style="cursor: pointer;">Chọn file ảnh</label> </p>
+                <input name="ImageFile" id="ufile" type="file" style="display: none;" onchange="loadFile(event)" />
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(model => model.deptid, "Phòng ban", htmlAttributes: new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.DropDownList("deptid", null, htmlAttributes: new { @class = "form-control" })
+                @Html.ValidationMessageFor(model => model.deptid, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="col-md-offset-2 col-md-10">
+                <input type="submit" value="Thêm mới" class="btn btn-default" />
+            </div>
+        </div>
+    </div>
+}
+
+<div>
+    @Html.ActionLink("Quay lại", "Xemdanhsach")
+</div>
+@if (ViewBag.Error != null)
+            {
+                <br />
+                <div class="alert alert-danger" role="alert">@ViewBag.Error</div>
+            }
+
+@section Scripts {
+    @Scripts.Render("~/bundles/jqueryval")
+}
+<script>
+    var loadFile = function (event) {
+        var image = document.getElementById('output');
+        image.src = URL.createObjectURL(event.target.files[0]);
+    };
+</script>
+
+-------------------------------------------------------------------------------------------------------------------------------
+Kết nối csdl: 
+Thêm EntityFramework
+Models: Add/ new item/ Data/ ADO.NET Entity Data Model(name:CompanyDB)/ Code Fist from database/ New Connection/ Thêm Severname/(Trus Sever Certificate)/chọn Database/Table:on
+
+		
+
