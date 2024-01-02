@@ -1,0 +1,82 @@
+Quyền root:	su- 
+Chuyển đến thư mục home: cd /home
+Tạo user: 	adduser annp1
+Tạo nhóm:	groupadd CNTT
+Thềm user vào nhóm:	usermod -g CNTT annp1
+Thoát khỏi home:cd
+Xem user:	cat /etc/passwd
+----------------------------------------------------------------------------------
+----------------------------------------------------------------------------------
+Xóa ip:		ip addr flush enps2s1
+Thêm ip:	ip addr add 10.0.0.10/8 dev enp2s1
+Tạo ip:	nano /etc/network/interfaces
+	auto enp2s1
+	iface enp2s1 inet static
+	address 10.0.0.10
+	netmask 255.0.0.0
+	(Ctr+O Enter || Ctr+X)
+Chỉnh hết về host-only
+Tắt firewall ; chỉnh ip: 10.0.0.15 ; netmask: 255.0.0.0
+ping win2008
+ping linux(Ctr+C)
+Tạo thư mục:		mkdir /home/share
+Thay quyền sở hữu:	chgrp CNTT /home/share
+Chỉnh quyền thư mục:	chmod 770 /home/share
+Cấu hình samba:		nano /etc/samba/smb.conf
+		    	
+		[share)
+		security = user
+		path = /home/share
+		writeable = yes
+		guest ok = no
+		valid user = @CNTT
+		force group = CNTT
+		force create mode = 770
+		force directory mode = 770
+		inherit permissions = yes
+		(Ctr+O Enter || Ctr+X)
+Restart Samba:	systemctl restart smbd
+Cài mk samba:	smbpasswd -a annp1
+----------------------------------------------------------------------------------
+----------------------------------------------------------------------------------
+Vào thư mục:	\\10.0.0.10
+		Nhập tk người dùng(chụp)
+Ánh xạ:		Network | Map Network | \\10.0.0.10\share | Finish
+----------------------------------------------------------------------------------
+----------------------------------------------------------------------------------
+Cài đặt DNS:	apt install bind9
+Cấu hình DNS:	nano /etc/bind/named.conf.options
+	-Dòng "forwarders":	Chỉnh về ip của máy|10.0.0.10;
+				(Ctr+O Enter || Ctr+X)
+		
+Cấu hình DNS:	nano /etc/bind/named.conf.local
+	-thêm vào cuối:		zone "abc.com" IN{
+					type master;
+					file "/etc/bind/db.abc.com";
+				};
+				
+				zone "0.0.10.in-addr.arpa" IN{
+					type master;
+					file "/etc/bind/db.10";
+				};
+				(Ctr+O Enter || Ctr+X)
+Cấu hình DNS:	cp /etc/bind/db.local /etc/bind/db.abc.com
+Cấu hình DNS:	cp /etc/bind/db.127 /etc/bind/db.10
+Cấu hình DNS:	nano /etc/bind/db.abc.com
+	-thay "localhost" bằng tên miền | abc.com.(x3)
+	-thay A dưới: 10.0.0.10	
+	-thêm vào cuối:	ns  IN  A  10.0.0.10
+	(Ctr+O Enter || Ctr+X)	
+Cấu hình DNS:	nano /etc/bind/db.10
+	-thay "localhost" bằng tên miền | abc.com.(x2)2
+	-thay "localhost" 3 bằng: ns.
+	-thay dòng "localhost" cuối bằng: 10  IN  PTR  ns.abc.com.
+	(Ctr+O Enter || Ctr+X)
+Cấu hình DNS:	nano /etc/resolv.conf
+	-thêm :	search localdomain
+		nameserver 10.0.0.10
+		options enp2s1
+		(Ctr+O Enter || Ctr+X)
+Restart:	systemctl restart bind9
+Phân giải xuôi:		nslookup abc.com
+Phân giải ngược:	nslookup 10.0.0.10
